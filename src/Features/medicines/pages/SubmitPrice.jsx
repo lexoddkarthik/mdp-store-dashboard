@@ -9,6 +9,7 @@ export default function SubmitPrice({ storeId }) {
   const [successMessage, setSuccessMessage] = useState("");
   const [loadError, setLoadError] = useState("");
 
+  // Fetch all medicines on component mount
   useEffect(() => {
     getMedicines()
       .then((res) => setMedicines(res.data || []))
@@ -18,6 +19,14 @@ export default function SubmitPrice({ storeId }) {
       });
   }, []);
 
+  // Find the selected medicine object and calculate its max allowable price (MRP in rupees)
+  const medicineObj = medicines.find((m) => m._id === selectedMedicine);
+  const maxPrice = medicineObj?.mrpPaise ? medicineObj.mrpPaise / 100 : null;
+
+  // Validation check: ensure the new entered price does not exceed the existing MRP
+  const isPriceExceeded =
+    newPrice && maxPrice !== null && Number(newPrice) > maxPrice;
+
   const handlePriceSubmit = async (e) => {
     e.preventDefault();
     if (!selectedMedicine || !newPrice) {
@@ -25,28 +34,33 @@ export default function SubmitPrice({ storeId }) {
       return;
     }
 
+    if (isPriceExceeded) {
+      alert("Entered price cannot be greater than MRP!");
+      return;
+    }
+
     setSubmitting(true);
     setSuccessMessage("");
 
     try {
-      const medicineObj = medicines.find(m => m._id === selectedMedicine);
-      
       const payload = {
         items: [
           {
             medicineId: selectedMedicine,
             name: medicineObj?.name,
             storePrice: newPrice,
-            mrp: medicineObj?.mrpPaise ? (medicineObj.mrpPaise / 100).toString() : "100"
-          }
-        ]
+            mrp: maxPrice ? maxPrice.toString() : "100",
+          },
+        ],
       };
 
-      // Response ni variable lo store chesi console lo print chesthunnam
+      // Store response in a variable and log it to the console for debugging
       const response = await submitPriceChanges(storeId, payload);
       console.log("Price Submission Response:", response);
 
-      setSuccessMessage("Price submission sent for MDP approval successfully! 🚀");
+      setSuccessMessage(
+        "Price submission sent for MDP approval successfully! 🚀"
+      );
       setNewPrice("");
       setSelectedMedicine("");
     } catch (err) {
@@ -58,13 +72,20 @@ export default function SubmitPrice({ storeId }) {
   };
 
   return (
-    <form onSubmit={handlePriceSubmit} style={{ marginBottom: "30px", padding: "15px", border: "1px solid #ccc" }}>
+    <form
+      onSubmit={handlePriceSubmit}
+      style={{
+        marginBottom: "30px",
+        padding: "15px",
+        border: "1px solid #ccc",
+      }}
+    >
       <h3>Submit Price Change</h3>
-      
+
       <div style={{ marginBottom: "10px" }}>
         <label>Select Medicine: </label>
-        <select 
-          value={selectedMedicine} 
+        <select
+          value={selectedMedicine}
           onChange={(e) => setSelectedMedicine(e.target.value)}
         >
           <option value="">-- Choose Medicine --</option>
@@ -79,15 +100,23 @@ export default function SubmitPrice({ storeId }) {
 
       <div style={{ marginBottom: "10px" }}>
         <label>New Store Price (₹): </label>
-        <input 
-          type="number" 
-          placeholder="Enter new price" 
+        <input
+          type="number"
+          placeholder="Enter new price"
           value={newPrice}
           onChange={(e) => setNewPrice(e.target.value)}
         />
       </div>
 
-      <button type="submit" disabled={submitting}>
+      {/* Warning message displayed if the entered price exceeds the existing MRP */}
+      {isPriceExceeded && (
+        <p style={{ color: "red", fontWeight: "bold", margin: "5px 0" }}>
+          ⚠️ New price cannot exceed existing MRP (₹{maxPrice})!
+        </p>
+      )}
+
+      {/* Disable the submit button if the price exceeds MRP or while submitting */}
+      <button type="submit" disabled={submitting || isPriceExceeded}>
         {submitting ? "Submitting..." : "Submit for Approval"}
       </button>
 
